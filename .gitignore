@@ -1,0 +1,50 @@
+# ── Dependencies ──────────────────────────────────────────────────────────────
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# ── Build artifacts ───────────────────────────────────────────────────────────
+frontend/dist/
+backend/dist/
+backend/.aws-sam/
+
+# ── Environment files (contain live URLs, secrets, credentials) ───────────────
+.env
+.env.local
+.env.*.local
+frontend/.env.local
+frontend/.env.production
+backend/.env
+backend/.env.local
+
+# ── AWS credentials and config (never commit these) ───────────────────────────
+.aws/
+aws-exports.js
+amplify-meta.json
+**/aws-credentials*
+**/.credentials
+
+# ── SAM / CloudFormation ──────────────────────────────────────────────────────
+# samconfig.toml contains account-specific deployment parameters
+samconfig.toml
+backend/samconfig.toml
+
+# ── OS and editor artifacts ───────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/settings.json
+.idea/
+
+# ── Test coverage ─────────────────────────────────────────────────────────────
+coverage/
+backend/coverage/
+frontend/coverage/
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+
+# ── Kiro IDE workspace files ──────────────────────────────────────────────────
+.kiro/

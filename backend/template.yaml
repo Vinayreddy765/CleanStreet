@@ -1,0 +1,194 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: CleanStreet - Roadside Litter Reporting and Cleanup Coordination Platform
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 256
+    Runtime: nodejs20.x
+    Environment:
+      Variables:
+        TABLE_NAME: !Ref ReportsTable
+        PHOTOS_BUCKET: !Ref PhotosBucket
+        AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1'
+        NODE_OPTIONS: '--enable-source-maps'
+  Api:
+    Cors:
+      AllowMethods: "'GET,POST,PATCH,OPTIONS'"
+      AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+      AllowOrigin: "'*'"
+
+Resources:
+  PhotosBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'cleanstreet-photos-${AWS::AccountId}-${AWS::Region}'
+      # No public access — images are served via presigned GET URLs
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins:
+              - '*'
+            AllowedMethods:
+              - PUT
+              - GET
+              - HEAD
+            AllowedHeaders:
+              - '*'
+            MaxAge: 3600
+      LifecycleConfiguration:
+        Rules:
+          - Id: AbortIncompleteMultipartUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+
+  ReportsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: CleanStreetReports
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: StatusIndex
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  CleanStreetApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+      Cors:
+        AllowMethods: "'GET,POST,PATCH,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+        AllowOrigin: "'*'"
+
+  ReportsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cleanstreet-ReportsFunction
+      Handler: dist/index.handler
+      CodeUri: .
+      Description: CleanStreet API handler for all report endpoints
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ReportsTable
+        - S3CrudPolicy:
+            BucketName: !Ref PhotosBucket
+      Events:
+        GetReports:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CleanStreetApi
+            Path: /reports
+            Method: GET
+        PostReport:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CleanStreetApi
+            Path: /reports
+            Method: POST
+        GetReport:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CleanStreetApi
+            Path: /reports/{id}
+            Method: GET
+        PatchReport:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CleanStreetApi
+            Path: /reports/{id}
+            Method: PATCH
+        GetDashboard:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CleanStreetApi
+            Path: /dashboard
+            Method: GET
+        OptionsReports:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CleanStreetApi
+            Path: /reports
+            Method: OPTIONS
+        OptionsReport:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CleanStreetApi
+            Path: /reports/{id}
+            Method: OPTIONS
+        OptionsDashboard:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CleanStreetApi
+            Path: /dashboard
+            Method: OPTIONS
+        PostPresign:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CleanStreetApi
+            Path: /uploads/presign
+            Method: POST
+        OptionsPresign:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CleanStreetApi
+            Path: /uploads/presign
+            Method: OPTIONS
+        GetPhotoView:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CleanStreetApi
+            Path: /uploads/view
+            Method: GET
+        OptionsPhotoView:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CleanStreetApi
+            Path: /uploads/view
+            Method: OPTIONS
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/index.ts
+
+Outputs:
+  ApiUrl:
+    Description: CleanStreet API Gateway endpoint URL
+    Value: !Sub 'https://${CleanStreetApi}.execute-api.${AWS::Region}.amazonaws.com/prod'
+    Export:
+      Name: CleanStreetApiUrl
+  TableName:
+    Description: DynamoDB table name
+    Value: !Ref ReportsTable
+    Export:
+      Name: CleanStreetTableName
+  PhotosBucketName:
+    Description: S3 bucket for report and cleanup photos
+    Value: !Ref PhotosBucket
+    Export:
+      Name: CleanStreetPhotosBucket
